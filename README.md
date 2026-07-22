@@ -46,6 +46,11 @@ Reload with `herdr server reload-config`.
   focused pane: the single agent in the **current tab**, else the **workspace**.
   If several agents qualify, an **fzf** picker lets you choose one; if none are
   running, the pane runs **detached** (see below).
+- **What's reviewed** — the resolved **agent's** git diff: the pane `cd`s into
+  the agent's working dir, so you review what *that* agent changed, not wherever
+  you triggered from. The agent's dir must be inside a **git repo** — if it
+  isn't, the pane shows a "not a git repository" notice and stays open (it never
+  just blinks shut).
 - **On send** (`s` → `Enter` in lumen) — annotations are submitted into the
   resolved agent via `herdr agent prompt`. In manual mode the viewer
   **relaunches** so you keep reviewing; quit with `q` to close the pane.

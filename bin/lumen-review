@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Runs inside the review pane. Reviews the resolved agent's repo (cd's into its cwd) with lumen;
+# on send (s+Enter in lumen) forwards the annotation text to that agent. Annotations are NEVER
+# dropped: with no agent to send to, lumen runs detached and prints them to stdout; if a send fails,
+# the text is shown and the pane is held open until dismissed. A missing repo or lumen error is
+# shown and held too — the pane never just blinks shut.
+#
+# The opener passes context via --env:
+#   LUMEN_REVIEW_MODE     manual (relaunch after each send) | auto (send once, then exit)
+#   LUMEN_REVIEW_TARGET   explicit agent pane (plan-exit hook); skips inference
+#   LUMEN_REVIEW_TAB/WS   tab + workspace to infer the agent from (manual open)
+set -uo pipefail
+ROOT="${HERDR_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+. "$ROOT/lib/common.sh"
+
+if ! command -v lumen >/dev/null 2>&1; then
+  printf '\n  lumen is not installed or not on PATH.\n  Install it: https://github.com/jnsahaj/lumen\n\n' >&2
+  read -r -p "  Press Enter to close... " _ </dev/tty || true
+  exit 0
+fi
+
+mode="${LUMEN_REVIEW_MODE:-manual}"
+
+# lumen invocation, with the configured theme (passed as --env by the opener) if any.
+lumen_args=(diff --watch)
+[ -n "${LUMEN_REVIEW_THEME:-}" ] && lumen_args+=(--theme "$LUMEN_REVIEW_THEME")
+
+close_self() {  # split closes by label in the opener's workspace; popup passes none and auto-closes.
+  [ -n "${LUMEN_REVIEW_WS:-}" ] || return 0
+  review_panes_in_ws "$LUMEN_REVIEW_WS" | close_panes
+}
+deliver() { "$H" agent prompt "$1" "$2" >/dev/null 2>&1; }
+hold() {  # show a message and keep the pane open until dismissed (so nothing blinks away)
+  printf '\n  %s\n\n' "$1" >&2
+  read -r -p "  Press Enter to close... " _ </dev/tty || true
+}
+review_once() { lumen "${lumen_args[@]}" ${LUMEN_REVIEW_EXTRA_ARGS:-}; }
+
+# Resolve the agent to forward to. An explicit target (the plan-exit hook) wins; otherwise infer
+# from the current tab, then the workspace.
+target="${LUMEN_REVIEW_TARGET:-}"
+[ -n "$target" ] || target=$(resolve_agent_target "${LUMEN_REVIEW_TAB:-}" "${LUMEN_REVIEW_WS:-}")
+
+# Review the resolved agent's repo, not wherever the pane was opened from.
+if [ -n "$target" ]; then
+  acwd=$("$H" pane get "$target" 2>/dev/null | jq -r '.result.pane.cwd // empty')
+  [ -n "$acwd" ] && [ -d "$acwd" ] && cd "$acwd" 2>/dev/null || true
+fi
+
+# lumen needs a git repo; say so clearly instead of blink-closing when there isn't one.
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  hold "Not a git repository: $(pwd)
+  lumen-review shows the agent's git diff, and this directory isn't in a git repo."
+  close_self
+  exit 0
+fi
+
+# Detached: no agent to send to. Run plain lumen — its stdout carries the annotations, and the
+# pane's scrollback keeps them. Don't loop; hold on error so a failure stays visible.
+if [ -z "$target" ]; then
+  printf '\n  No agent to send annotations to - running lumen detached (annotations print here).\n\n' >&2
+  review_once || hold "lumen exited with an error - see above."
+  close_self
+  exit 0
+fi
+
+if [ "$mode" = auto ]; then
+  note=$(review_once); ec=$?
+  if [ "$ec" -ne 0 ]; then
+    hold "lumen exited with an error (code $ec) - see above."
+  elif [ -n "$note" ]; then
+    deliver "$target" "$note" || hold "Could not deliver annotations to $target. They are preserved:
+
+$note"
+  fi
+  close_self
+else
+  while :; do
+    note=$(review_once); ec=$?
+    [ "$ec" -eq 0 ] || { hold "lumen exited with an error (code $ec) - see above."; break; }
+    [ -n "$note" ] || break                  # clean quit (q)
+    deliver "$target" "$note" && continue     # sent -> keep reviewing, relaunch the viewer
+    hold "Could not deliver annotations to $target. They are preserved:
+
+$note"
+    break
+  done
+  close_self
+fi

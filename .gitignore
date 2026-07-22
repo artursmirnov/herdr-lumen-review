@@ -1,2 +1,7 @@
 *.bak
 *.lumen-review.bak
+
+# Re-include the pane wrapper: a global ignore (~/.config/git/ignore) commonly excludes bin/*,
+# which silently dropped this file from the repo. Keep it tracked.
+!bin/
+!bin/lumen-review
