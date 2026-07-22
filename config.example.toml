@@ -1,0 +1,21 @@
+# lumen-review config. Copy to the plugin config dir, then edit:
+#   cp config.example.toml "$(herdr plugin config-dir artursmirnov.lumen-review)/config.toml"
+# Read at open time — edits apply on the next open, no reload. Every key is optional; omit one to
+# keep the default shown here.
+
+# lumen color theme (empty = lumen's default). e.g. dracula, nord, gruvbox-dark, catppuccin-mocha
+theme = ""
+
+# Manual review pane (toggle / open).
+[changes]
+placement = "split"   # split | popup | overlay
+direction = "right"   # right | down   (split only)
+ratio     = 0.6       # split WIDTH fraction, side-by-side (right) only; approximate. height (down)
+                      # splits and non-split placements ignore this.
+
+# Plan-exit review pane (auto-open on plan approval).
+[plan-review]
+placement = "popup"   # popup | split | overlay
+direction = "right"   # split only
+ratio     = 0.6       # split only. popup size is set in herdr-plugin.toml (plan-review pane
+                      # width/height), not here — the CLI can't size a popup.

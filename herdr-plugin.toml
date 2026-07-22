@@ -1,0 +1,60 @@
+id = "artursmirnov.lumen-review"
+name = "lumen-review"
+version = "0.1.0"
+min_herdr_version = "0.7.5"
+platforms = ["macos", "linux"]
+description = "Review the agent's diff with lumen in a side pane and send line annotations back to the agent."
+
+# lumen is expected on PATH — install it yourself (https://github.com/jnsahaj/lumen).
+# Nothing is bundled or built; there is no [[build]] step.
+
+# The review pane. cwd is set to the repo under review at open time, so the wrapper is referenced
+# by absolute path under the plugin root. Mode + target reach the wrapper via --env from the opener.
+[[panes]]
+id = "changes"
+title = "changes"
+placement = "split"
+command = ["sh", "-c", "exec bash \"$HERDR_PLUGIN_ROOT/bin/lumen-review\""]
+
+# The plan-exit review pane: a floating popup over the active (agent) pane, sized from the manifest.
+# Opened without --placement so it inherits `popup`. Popups are id-less and auto-close when the
+# wrapper exits.
+[[panes]]
+id = "plan-review"
+title = "plan review"
+placement = "popup"
+width = "80%"
+height = "80%"
+command = ["sh", "-c", "exec bash \"$HERDR_PLUGIN_ROOT/bin/lumen-review\""]
+
+[[actions]]
+id = "toggle"
+title = "lumen review: toggle"
+contexts = ["pane", "workspace"]
+command = ["bash", "actions/toggle.sh"]
+
+[[actions]]
+id = "open"
+title = "lumen review: open"
+contexts = ["pane", "workspace"]
+command = ["bash", "actions/open.sh"]
+
+[[actions]]
+id = "close"
+title = "lumen review: close"
+contexts = ["pane", "workspace"]
+command = ["bash", "actions/close.sh"]
+
+# Manage the Claude Code PostToolUse:ExitPlanMode hook that auto-opens the review pane on plan
+# approval. Explicit actions — the hook is never installed automatically.
+[[actions]]
+id = "install-hook"
+title = "lumen review: install plan-exit hook (Claude Code)"
+contexts = ["workspace"]
+command = ["bash", "actions/install-hook.sh"]
+
+[[actions]]
+id = "uninstall-hook"
+title = "lumen review: uninstall plan-exit hook (Claude Code)"
+contexts = ["workspace"]
+command = ["bash", "actions/uninstall-hook.sh"]
